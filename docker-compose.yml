@@ -1,67 +1,82 @@
+# Docker Compose file format version
 version: '3.8'
 
-services:
-  postgres:
-    image: postgres:16-alpine
-    env_file: .env
+services:   # Define all services (containers) that will run in the application
+
+  postgres:   # Service name (PostgreSQL database container)
+    image: postgres:16-alpine   # Use official PostgreSQL image version 16 based on Alpine Linux
+    env_file: .env   # Load environment variables from .env file
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      - pgdata:/var/lib/postgresql/data   # Named volume to persist database data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql   # Run init.sql automatically when DB starts first time
+
+    healthcheck:   # Check if PostgreSQL is ready to accept connections
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"] 
+      interval: 10s   # Run health check every 10 seconds
+      timeout: 5s     # Wait maximum 5 seconds for result
+      retries: 5      # Retry 5 times before marking container unhealthy
+
+
+  redis:   # Redis caching service
+    image: redis:7-alpine   # Official Redis image using Alpine Linux
+
+    healthcheck:   # Check if Redis is responding
+      test: ["CMD", "redis-cli", "ping"]   # Send ping command to Redis
       interval: 10s
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  flask1:
-    build: .
+  flask1:   # First Flask application container
+    build: .   # Build Docker image from Dockerfile in current directory
     environment:
-      - SERVER_NAME=flask1
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - SERVER_NAME=flask1   # Set environment variable inside container
+    env_file: .env   # Load environment variables from .env file
 
-  flask2:
+    depends_on:   # Ensure these services start before flask1
+      postgres:
+        condition: service_healthy   # Wait until postgres is healthy
+      redis:
+        condition: service_healthy   # Wait until redis is healthy
+
+
+  flask2:   # Second Flask application container (for load balancing)
     build: .
     environment:
       - SERVER_NAME=flask2
     env_file: .env
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  nginx:
-    image: nginx:alpine
+
+  nginx:   # Reverse proxy and load balancer
+    image: nginx:alpine   # Use official Nginx image
+
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"   # Map host port 80 → container port 80 (HTTP)
+      - "443:443" # Map host port 443 → container port 443 (HTTPS)
+
     volumes:
-      - ./conf/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-      - ./static:/app/static:ro
+      - ./conf/nginx.conf:/etc/nginx/nginx.conf:ro   # Mount custom nginx config file (read-only)
+      - ./ssl:/etc/nginx/ssl:ro   # Mount SSL certificates
+      - ./static:/app/static:ro   # Mount static files (CSS, JS, images)
+
     depends_on:
-      - flask1
-      - flask2
+      - flask1   # Start after flask1
+      - flask2   # Start after flask2
+
     healthcheck:
-      # استخدمنا --no-check-certificate عشان الشهادة self-signed
-      # واستخدمنا 127.0.0.1 بدل localhost لتجنب مشاكل الـ DNS/IPv6
+      # Using --no-check-certificate because SSL certificate is self-signed
+      # Using 127.0.0.1 instead of localhost to avoid DNS/IPv6 issues
       test: ["CMD", "wget", "--no-check-certificate", "--quiet", "--tries=1", "--spider", "https://127.0.0.1/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3
 
+
 volumes:
-  pgdata:
+  pgdata:   # Named volume used by PostgreSQL to persist database data
