@@ -407,27 +407,9 @@ Ensure `init.sql` is mounted correctly in the PostgreSQL container.
 
 ---
 
-# Submission Requirements
-
-The repository should include:
-
-* Dockerfile
-* docker-compose.yml
-* nginx configuration
-* SSL generation script
-* README file
-
-Screenshots required:
-
-1. Application running at https://localhost
-2. `docker compose ps` showing all containers healthy
-3. Health endpoint output from `/api/health`
-
----
-
 # Author
 
-Anas Galal
+Anas Mohamed Galal
 DevOps Engineer (in progress)
 
 Background in Telecommunications Engineering with a focus on:
